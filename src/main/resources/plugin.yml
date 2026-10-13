@@ -1,5 +1,5 @@
-name: PocketMobs
-version: 2.0.0
+﻿name: PocketMobs
+version: ${project.version}
 main: dev.lone.pocketmobs.Main
 api-version: 1.21
 folia-supported: true
@@ -8,13 +8,16 @@ authors: [LoneDev,HuiDu_OwO]
 softdepend:
   - Vault
   - Essentials
+  - Dominion
+  - PerfectSelfWorld
+  - MyPet
 commands:
   pocketmob:
     description: Main command for PocketMobs plugin
     usage: /<command> [get|give|reload|recipes|debug] [args]
     aliases: [pocketmobs, pmob, pmobs]
 permissions:
-  # Admin subcommands — op-only by default.
+  # Admin subcommands 鈥?op-only by default.
   pocketmob.admin.get:
     description: Allows using /pocketmob get
     default: op
@@ -27,9 +30,11 @@ permissions:
   pocketmob.admin.debug:
     description: Allows using /pocketmob debug
     default: op
-  # User features — granted to everyone by default.
+  # User features 鈥?granted to everyone by default.
   pocketmob.user.recipes:
     description: Allows viewing and buying ball recipes via /pocketmob recipes
     default: true
   # Per-ball nodes pocketmob.user.craft.<ball> and pocketmob.user.buy.<ball> are
   # registered at runtime (default true) because ball names come from balls.yml.
+
+

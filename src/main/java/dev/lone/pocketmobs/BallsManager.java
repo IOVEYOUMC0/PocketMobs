@@ -11,6 +11,7 @@ import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.ShapedRecipe;
 import org.bukkit.permissions.Permission;
@@ -24,9 +25,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.io.File;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 
 public class BallsManager
 {
+    private static final int CURRENT_BALLS_CONFIG_VERSION = 2;
     Plugin plugin;
 
     public CustomConfigFile config;
@@ -42,8 +48,63 @@ public class BallsManager
     {
         this.plugin = plugin;
         config = new CustomConfigFile(this.plugin, "balls", false, false);
+        migrateConfig();
 
         reload();
+    }
+
+    /** Adds new bundled ball settings without overwriting server customizations. */
+    private void migrateConfig()
+    {
+        int version = config.getInt("balls-config-version", 1);
+        if (version >= CURRENT_BALLS_CONFIG_VERSION)
+        {
+            return;
+        }
+
+        try (InputStream resource = plugin.getResource("balls.yml"))
+        {
+            if (resource == null)
+            {
+                plugin.getLogger().warning("Bundled balls.yml is unavailable; skipping balls config migration.");
+                return;
+            }
+
+            YamlConfiguration defaults = YamlConfiguration.loadConfiguration(
+                    new InputStreamReader(resource, StandardCharsets.UTF_8));
+            mergeMissingValues(defaults, config.getConfig(), "");
+            config.set("balls-config-version", CURRENT_BALLS_CONFIG_VERSION);
+            config.save();
+            config.reloadFromFile();
+            plugin.getLogger().info("Balls configuration migrated to v" + CURRENT_BALLS_CONFIG_VERSION + ".");
+        }
+        catch (Exception e)
+        {
+            plugin.getLogger().warning("Failed to migrate balls.yml: " + e.getMessage());
+        }
+    }
+
+    private void mergeMissingValues(ConfigurationSection source, ConfigurationSection target, String path)
+    {
+        for (String key : source.getKeys(false))
+        {
+            String fullPath = path.isEmpty() ? key : path + "." + key;
+            Object sourceValue = source.get(key);
+            if (sourceValue instanceof ConfigurationSection sourceSection)
+            {
+                ConfigurationSection targetSection = target.getConfigurationSection(key);
+                if (targetSection == null)
+                {
+                    target.createSection(key);
+                    targetSection = target.getConfigurationSection(key);
+                }
+                mergeMissingValues(sourceSection, targetSection, fullPath);
+            }
+            else if (!target.contains(key))
+            {
+                target.set(key, sourceValue);
+            }
+        }
     }
 
     public void load()
@@ -89,7 +150,13 @@ public class BallsManager
             }
 
             String displayName = config.getString("balls." + key + ".display-name");
+            if (displayName != null)
+            {
+                displayName = ChatColor.translateAlternateColorCodes('&', displayName);
+            }
             tmp.setDisplayName(ChatColor.RESET + (displayName != null ? displayName : key));
+            tmp.setConfiguredLore(config.getConfig().getStringList("balls." + key + ".lore"));
+            tmp.setConfiguredFilledLore(config.getConfig().getStringList("balls." + key + ".filled-lore"));
 
             if (Settings.config.getBoolean("logic.buy.enabled", true))
             {

@@ -1,32 +1,55 @@
+# 配置文件版本号。插件更新时会自动补充缺失配置，不会覆盖已有自定义内容。
+balls-config-version: 2
 balls:
   example_ball:
+    # 示例精灵球，默认关闭，不会加载到游戏中。
     enabled: false
+    # 物品显示名称，支持多行文本和 & 颜色代码。
     display-name: |-
       This is just an example Ball, you can see every attribute you can set here.
       Don't worry it's disabled, you can't get it ingame
+    # 物品材质。
     item-material: PLAYER_HEAD
+    # 自定义模型数据；-1 表示不使用自定义模型。
     custom-model-data: -1
+    # 玩家头颅纹理地址。
     head-texture: "https://textures.minecraft.net/texture/8deb47d47c28a6a43fc5b8d0fa46b2defbac9cbd5ab34480325a2459be110f4"
+    # 精灵球最大使用次数。
     max-usages: 4
+    # 是否无限使用；true 表示不消耗使用次数。
     unlimited-usages: false
+    # 捕捉成功概率，单位为百分比。
     catch-success: 65.3
+    # 允许捕捉的生物类型。
     catchable-entities:
       - PIG
       - HORSE
       - COW
+    # 禁止捕捉的生物类型，优先级高于允许列表。
     blacklisted-entities:
       - WITHER
       - ENDER_DRAGON
+    # 不同事件触发时播放的粒子和声音效果。
     effects:
+      # 捕捉成功时的效果。
       catch:
+        # 粒子效果。
         particle:
+          # 粒子类型。
           name: ENTITY_EFFECT
+          # 粒子数量。
           amount: 50
+          # 粒子颜色，仅部分粒子支持。
           color: "#00FF00"
+        # 声音效果。
         sound:
+          # 声音类型。
           name: BLOCK_ANVIL_PLACE
+          # 音量。
           volume: 1
+          # 音调。
           pitch: 2
+      # 释放生物成功时的效果。
       free:
         particle:
           name: EXPLOSION
@@ -35,6 +58,7 @@ balls:
           name: ENTITY_CHICKEN_EGG
           volume: 1
           pitch: 2
+      # 没有命中生物时的效果。
       missed:
         particle:
           name: CRIT
@@ -43,6 +67,7 @@ balls:
           name: ENTITY_ARMOR_STAND_HIT
           volume: 1
           pitch: 2
+      # 释放生物失败时的效果。
       not_spawned:
         particle:
           name: SMOKE
@@ -51,21 +76,132 @@ balls:
           name: ENTITY_ARMOR_STAND_HIT
           volume: 1
           pitch: 2
+    # 购买设置，需要启用全局购买功能并安装经济插件。
     buy:
-      enabled: true
+      # 是否允许购买此精灵球。
+      enabled: false
+      # 购买价格。
       price: 999999
+      # 每次购买获得的数量。
       amount: 3
+    # 合成配方设置。
     craft-recipe:
-      enabled: true
+      # 是否启用合成配方。
+      enabled: false
+      # 合成配方形状，X 表示空位置。
       pattern:
         - XOX
         - XEX
         - XOX
+      # 配方字符对应的物品。
       ingredients:
         O: OBSIDIAN
         E: ENDER_CHEST
+    # 捕捉成功后满球的 lore；未配置时使用插件默认格式。
+    # 动态变量：{usages}、{max-usages}、{catch-chance}、{mob-name}、{mob-details}、{mob-life}。
+    filled-lore:
+      - "&6▶ &8{lore-info}"
+      - "&d▸ &7{lore-usages}: &f{usages}&7/&f{max-usages}"
+      - "&d▸ &7{lore-catch-chance}: &f{catch-chance}"
+      - "&d▸ &7{lore-mob-name}: &f{mob-name}"
+      - "&d▸ &7{lore-mob-details}:"
+      - "&f  {mob-details}"
+      - "&d▸ &7{lore-mob-life}: &f{mob-life}"
+      - ""
+      - "&6▶ &8{lore-usage}"
+      - "&7• &f{lore-release}"
+  # lore 文案使用语言占位符，由 lang/zh.yml 或 lang/en.yml 提供。
+  # 动态变量：{catch-chance} 捕捉概率、{usages} 当前次数、{max-usages} 最大次数、{catchable-mobs} 可捕捉生物。
+  # 自定义其他精灵球时可参照此格式，保留占位符即可随语言切换。
+  master_ball:
+    # 物品显示名称，支持 & 颜色代码。
+    display-name: "&d&l大师球"
+    # 自定义空球 lore。支持 & 颜色代码、MiniMessage 标签和语言键占位符。
+    # 语言键来自 lang/zh.yml 或 lang/en.yml。
+    # 动态变量：{usages} 当前次数、{max-usages} 最大次数、{catch-chance} 捕捉概率、{catchable-mobs} 可捕捉生物。
+    lore:
+      - "&6▶ &8{lore-info}"
+      - "&d▸ &7{lore-catch-chance}: &f{catch-chance}"
+      - "&d▸ &7{lore-usages}: &f{usages}&7/&f{max-usages}"
+      - "&d▸ &7{lore-catchable}: &f{catchable-mobs}"
+      - ""
+      - "&6▶ &8{lore-usage}"
+      - "&7• &f{lore-throw}"
+      - "&7• &f{lore-release}"
+    # 捕捉成功后满球的 lore；未配置时使用插件默认格式。
+    # 动态变量：{usages}、{max-usages}、{catch-chance}、{mob-name}、{mob-details}、{mob-life}。
+    filled-lore:
+      - "&6▶ &8{lore-info}"
+      - "&d▸ &7{lore-usages}: &f{usages}&7/&f{max-usages}"
+      - "&d▸ &7{lore-catch-chance}: &f{catch-chance}"
+      - "&d▸ &7{lore-mob-name}: &f{mob-name}"
+      - "&d▸ &7{lore-mob-details}:"
+      - "&f  {mob-details}"
+      - "&d▸ &7{lore-mob-life}: &f{mob-life}"
+      - ""
+      - "&6▶ &8{lore-usage}"
+      - "&7• &f{lore-release}"
+    # 玩家头颅纹理地址，也可以配合 item-material 使用其他材质。
+    head-texture: "https://textures.minecraft.net/texture/556d2a1cdda8778ffd833c7a5f539b87f99eb83a5d19599e5fa8e6c966c37c2"
+    # 精灵球最大使用次数。
+    max-usages: 4
+    # 是否拥有无限使用次数；为 true 时忽略 max-usages。
+    unlimited-usages: false
+    # 捕捉成功概率，范围通常为 0 至 100。
+    catch-success: 70.0
+    # 购买设置；需要启用全局购买功能并安装经济插件。
+    buy:
+      # 是否允许通过商店购买此精灵球。
+      enabled: false
+      # 单组购买价格。
+      price: 1000
+      # 每次购买获得的数量。
+      amount: 5
+    # 捕捉成功时播放的效果。
+    effects:
+      catch:
+        # 粒子效果类型和数量。
+        particle:
+          name: FLAME
+          amount: 100
+      # 释放成功时播放的效果。
+      free:
+        # 粒子效果类型和数量。
+        particle:
+          name: CLOUD
+          amount: 80
+    # 允许捕捉的生物类型；ALL_MOBS 表示全部生物。
+    catchable-entities:
+      - ALL_MOBS
+    # 禁止捕捉的生物类型，优先级高于 catchable-entities。
+    blacklisted-entities:
+      - ENDER_DRAGON
+      - WITHER
+      - GHAST
   farm_ball:
-    display-name: "Farm Ball"
+    display-name: "&a&l农场球"
+    lore:
+      - "&6▶ &8{lore-info}"
+      - "&a▸ &7{lore-catch-chance}: &f{catch-chance}"
+      - "&a▸ &7{lore-usages}: &f{usages}&7/&f{max-usages}"
+      - "&a▸ &7{lore-catchable}: &f{catchable-mobs}"
+      - ""
+      - "&6▶ &8{lore-usage}"
+      - "&7• &f{lore-throw}"
+      - "&7• &f{lore-release}"
+    # 捕捉成功后满球的 lore；未配置时使用插件默认格式。
+    # 动态变量：{usages}、{max-usages}、{catch-chance}、{mob-name}、{mob-details}、{mob-life}。
+    filled-lore:
+      - "&6▶ &8{lore-info}"
+      - "&d▸ &7{lore-usages}: &f{usages}&7/&f{max-usages}"
+      - "&d▸ &7{lore-catch-chance}: &f{catch-chance}"
+      - "&d▸ &7{lore-mob-name}: &f{mob-name}"
+      - "&d▸ &7{lore-mob-details}:"
+      - "&f  {mob-details}"
+      - "&d▸ &7{lore-mob-life}: &f{mob-life}"
+      - ""
+      - "&6▶ &8{lore-usage}"
+      - "&7• &f{lore-release}"
     head-texture: "https://textures.minecraft.net/texture/10f09f4b7c4f828db6ed9d0827e7232796ae1675e02d83f962dc4557e16159c6"
     max-usages: 4
     catch-success: 60.0
@@ -85,7 +221,29 @@ balls:
         W: WHEAT
         E: EGG
   nether_ball:
-    display-name: "Nether Ball"
+    display-name: "&6&l下界球"
+    lore:
+      - "&6▶ &8{lore-info}"
+      - "&6▸ &7{lore-catch-chance}: &f{catch-chance}"
+      - "&6▸ &7{lore-usages}: &f{usages}&7/&f{max-usages}"
+      - "&6▸ &7{lore-catchable}: &f{catchable-mobs}"
+      - ""
+      - "&6▶ &8{lore-usage}"
+      - "&7• &f{lore-throw}"
+      - "&7• &f{lore-release}"
+    # 捕捉成功后满球的 lore；未配置时使用插件默认格式。
+    # 动态变量：{usages}、{max-usages}、{catch-chance}、{mob-name}、{mob-details}、{mob-life}。
+    filled-lore:
+      - "&6▶ &8{lore-info}"
+      - "&d▸ &7{lore-usages}: &f{usages}&7/&f{max-usages}"
+      - "&d▸ &7{lore-catch-chance}: &f{catch-chance}"
+      - "&d▸ &7{lore-mob-name}: &f{mob-name}"
+      - "&d▸ &7{lore-mob-details}:"
+      - "&f  {mob-details}"
+      - "&d▸ &7{lore-mob-life}: &f{mob-life}"
+      - ""
+      - "&6▶ &8{lore-usage}"
+      - "&7• &f{lore-release}"
     head-texture: "https://textures.minecraft.net/texture/61da6d6200feed2b5faa3c2831a8f41e08b784ee5011f7bfa27ebd5bbe6a71f7"
     max-usages: 4
     catch-success: 50.0
@@ -95,7 +253,29 @@ balls:
       - WITHER_SKELETON
       - ZOMBIFIED_PIGLIN
   end_ball:
-    display-name: "End Ball"
+    display-name: "&5&l末地球"
+    lore:
+      - "&6▶ &8{lore-info}"
+      - "&5▸ &7{lore-catch-chance}: &f{catch-chance}"
+      - "&5▸ &7{lore-usages}: &f{usages}&7/&f{max-usages}"
+      - "&5▸ &7{lore-catchable}: &f{catchable-mobs}"
+      - ""
+      - "&6▶ &8{lore-usage}"
+      - "&7• &f{lore-throw}"
+      - "&7• &f{lore-release}"
+    # 捕捉成功后满球的 lore；未配置时使用插件默认格式。
+    # 动态变量：{usages}、{max-usages}、{catch-chance}、{mob-name}、{mob-details}、{mob-life}。
+    filled-lore:
+      - "&6▶ &8{lore-info}"
+      - "&d▸ &7{lore-usages}: &f{usages}&7/&f{max-usages}"
+      - "&d▸ &7{lore-catch-chance}: &f{catch-chance}"
+      - "&d▸ &7{lore-mob-name}: &f{mob-name}"
+      - "&d▸ &7{lore-mob-details}:"
+      - "&f  {mob-details}"
+      - "&d▸ &7{lore-mob-life}: &f{mob-life}"
+      - ""
+      - "&6▶ &8{lore-usage}"
+      - "&7• &f{lore-release}"
     head-texture: "https://textures.minecraft.net/texture/3f7b9a6f06b5e4b12b6abc214e9a312c0797896f2f3452d3bf0fc72f9fb053a"
     max-usages: 3
     catch-success: 60.0
@@ -104,7 +284,29 @@ balls:
       - ENDERMITE
       - SHULKER
   monster_ball:
-    display-name: "Monster Ball"
+    display-name: "&c&l怪物球"
+    lore:
+      - "&6▶ &8{lore-info}"
+      - "&c▸ &7{lore-catch-chance}: &f{catch-chance}"
+      - "&c▸ &7{lore-usages}: &f{usages}&7/&f{max-usages}"
+      - "&c▸ &7{lore-catchable}: &f{catchable-mobs}"
+      - ""
+      - "&6▶ &8{lore-usage}"
+      - "&7• &f{lore-throw}"
+      - "&7• &f{lore-release}"
+    # 捕捉成功后满球的 lore；未配置时使用插件默认格式。
+    # 动态变量：{usages}、{max-usages}、{catch-chance}、{mob-name}、{mob-details}、{mob-life}。
+    filled-lore:
+      - "&6▶ &8{lore-info}"
+      - "&d▸ &7{lore-usages}: &f{usages}&7/&f{max-usages}"
+      - "&d▸ &7{lore-catch-chance}: &f{catch-chance}"
+      - "&d▸ &7{lore-mob-name}: &f{mob-name}"
+      - "&d▸ &7{lore-mob-details}:"
+      - "&f  {mob-details}"
+      - "&d▸ &7{lore-mob-life}: &f{mob-life}"
+      - ""
+      - "&6▶ &8{lore-usage}"
+      - "&7• &f{lore-release}"
     head-texture: "https://textures.minecraft.net/texture/67752aea0bf348d5f5a21ddd743240d922b2ec86179fd0f41f4373f5fff4fe0ef"
     max-usages: 4
     catch-success: 50.0
@@ -115,7 +317,29 @@ balls:
       - STRAY
       - ZOMBIE
   villager_ball:
-    display-name: "Villager Ball"
+    display-name: "&e&l村民球"
+    lore:
+      - "&6▶ &8{lore-info}"
+      - "&e▸ &7{lore-catch-chance}: &f{catch-chance}"
+      - "&e▸ &7{lore-usages}: &f{usages}&7/&f{max-usages}"
+      - "&e▸ &7{lore-catchable}: &f{catchable-mobs}"
+      - ""
+      - "&6▶ &8{lore-usage}"
+      - "&7• &f{lore-throw}"
+      - "&7• &f{lore-release}"
+    # 捕捉成功后满球的 lore；未配置时使用插件默认格式。
+    # 动态变量：{usages}、{max-usages}、{catch-chance}、{mob-name}、{mob-details}、{mob-life}。
+    filled-lore:
+      - "&6▶ &8{lore-info}"
+      - "&d▸ &7{lore-usages}: &f{usages}&7/&f{max-usages}"
+      - "&d▸ &7{lore-catch-chance}: &f{catch-chance}"
+      - "&d▸ &7{lore-mob-name}: &f{mob-name}"
+      - "&d▸ &7{lore-mob-details}:"
+      - "&f  {mob-details}"
+      - "&d▸ &7{lore-mob-life}: &f{mob-life}"
+      - ""
+      - "&6▶ &8{lore-usage}"
+      - "&7• &f{lore-release}"
     head-texture: "https://textures.minecraft.net/texture/f5e3c33e432e1c1e0490431586d111c7eb87a53d37e0f91d02104c1b956dd6c1"
     max-usages: 5
     catch-success: 45.0
@@ -127,7 +351,29 @@ balls:
       - SNOW_GOLEM
       - ALLAY
   friend_ball:
-    display-name: "Friend Ball"
+    display-name: "&f&l好友球"
+    lore:
+      - "&6▶ &8{lore-info}"
+      - "&f▸ &7{lore-catch-chance}: &f{catch-chance}"
+      - "&f▸ &7{lore-usages}: &f{usages}&7/&f{max-usages}"
+      - "&f▸ &7{lore-catchable}: &f{catchable-mobs}"
+      - ""
+      - "&6▶ &8{lore-usage}"
+      - "&7• &f{lore-throw}"
+      - "&7• &f{lore-release}"
+    # 捕捉成功后满球的 lore；未配置时使用插件默认格式。
+    # 动态变量：{usages}、{max-usages}、{catch-chance}、{mob-name}、{mob-details}、{mob-life}。
+    filled-lore:
+      - "&6▶ &8{lore-info}"
+      - "&d▸ &7{lore-usages}: &f{usages}&7/&f{max-usages}"
+      - "&d▸ &7{lore-catch-chance}: &f{catch-chance}"
+      - "&d▸ &7{lore-mob-name}: &f{mob-name}"
+      - "&d▸ &7{lore-mob-details}:"
+      - "&f  {mob-details}"
+      - "&d▸ &7{lore-mob-life}: &f{mob-life}"
+      - ""
+      - "&6▶ &8{lore-usage}"
+      - "&7• &f{lore-release}"
     head-texture: "https://textures.minecraft.net/texture/e03f4c1676045a64c5709fbef9750597797362c6e471a9716d782601dce6fcb9"
     max-usages: 5
     catch-success: 45.0
@@ -137,7 +383,29 @@ balls:
       - PARROT
       - WOLF
   horse_ball:
-    display-name: "Horse Ball"
+    display-name: "&7&l马球"
+    lore:
+      - "&6▶ &8{lore-info}"
+      - "&7▸ &7{lore-catch-chance}: &f{catch-chance}"
+      - "&7▸ &7{lore-usages}: &f{usages}&7/&f{max-usages}"
+      - "&7▸ &7{lore-catchable}: &f{catchable-mobs}"
+      - ""
+      - "&6▶ &8{lore-usage}"
+      - "&7• &f{lore-throw}"
+      - "&7• &f{lore-release}"
+    # 捕捉成功后满球的 lore；未配置时使用插件默认格式。
+    # 动态变量：{usages}、{max-usages}、{catch-chance}、{mob-name}、{mob-details}、{mob-life}。
+    filled-lore:
+      - "&6▶ &8{lore-info}"
+      - "&d▸ &7{lore-usages}: &f{usages}&7/&f{max-usages}"
+      - "&d▸ &7{lore-catch-chance}: &f{catch-chance}"
+      - "&d▸ &7{lore-mob-name}: &f{mob-name}"
+      - "&d▸ &7{lore-mob-details}:"
+      - "&f  {mob-details}"
+      - "&d▸ &7{lore-mob-life}: &f{mob-life}"
+      - ""
+      - "&6▶ &8{lore-usage}"
+      - "&7• &f{lore-release}"
     head-texture: "https://textures.minecraft.net/texture/7ffcd905a5a9d2e70460599ec98269d1c7131fab13a32db53ab9643610fa5e3b"
     max-usages: 5
     catch-success: 45.0
@@ -148,7 +416,29 @@ balls:
       - SKELETON_HORSE
       - ZOMBIE_HORSE
   water_ball:
-    display-name: "Water Ball"
+    display-name: "&3&l水球"
+    lore:
+      - "&6▶ &8{lore-info}"
+      - "&3▸ &7{lore-catch-chance}: &f{catch-chance}"
+      - "&3▸ &7{lore-usages}: &f{usages}&7/&f{max-usages}"
+      - "&3▸ &7{lore-catchable}: &f{catchable-mobs}"
+      - ""
+      - "&6▶ &8{lore-usage}"
+      - "&7• &f{lore-throw}"
+      - "&7• &f{lore-release}"
+    # 捕捉成功后满球的 lore；未配置时使用插件默认格式。
+    # 动态变量：{usages}、{max-usages}、{catch-chance}、{mob-name}、{mob-details}、{mob-life}。
+    filled-lore:
+      - "&6▶ &8{lore-info}"
+      - "&d▸ &7{lore-usages}: &f{usages}&7/&f{max-usages}"
+      - "&d▸ &7{lore-catch-chance}: &f{catch-chance}"
+      - "&d▸ &7{lore-mob-name}: &f{mob-name}"
+      - "&d▸ &7{lore-mob-details}:"
+      - "&f  {mob-details}"
+      - "&d▸ &7{lore-mob-life}: &f{mob-life}"
+      - ""
+      - "&6▶ &8{lore-usage}"
+      - "&7• &f{lore-release}"
     head-texture: "https://textures.minecraft.net/texture/c353ec3fe05681b96f971ac66fa1337e04b2b1abc5ab54e58e16172e2394"
     max-usages: 5
     catch-success: 70.0
@@ -169,34 +459,32 @@ balls:
       - TURTLE
       - DOLPHIN
   ultra_ball:
-    display-name: "Ultra Ball"
+    display-name: "&b&l超级球"
+    lore:
+      - "&6▶ &8{lore-info}"
+      - "&b▸ &7{lore-catch-chance}: &f{catch-chance}"
+      - "&b▸ &7{lore-usages}: &f{usages}&7/&f{max-usages}"
+      - "&b▸ &7{lore-catchable}: &f{catchable-mobs}"
+      - ""
+      - "&6▶ &8{lore-usage}"
+      - "&7• &f{lore-throw}"
+      - "&7• &f{lore-release}"
+    # 捕捉成功后满球的 lore；未配置时使用插件默认格式。
+    # 动态变量：{usages}、{max-usages}、{catch-chance}、{mob-name}、{mob-details}、{mob-life}。
+    filled-lore:
+      - "&6▶ &8{lore-info}"
+      - "&d▸ &7{lore-usages}: &f{usages}&7/&f{max-usages}"
+      - "&d▸ &7{lore-catch-chance}: &f{catch-chance}"
+      - "&d▸ &7{lore-mob-name}: &f{mob-name}"
+      - "&d▸ &7{lore-mob-details}:"
+      - "&f  {mob-details}"
+      - "&d▸ &7{lore-mob-life}: &f{mob-life}"
+      - ""
+      - "&6▶ &8{lore-usage}"
+      - "&7• &f{lore-release}"
     head-texture: "https://textures.minecraft.net/texture/51f1eacbbe376557f5d7d3ece594db1338f6663662982cfc658c7a7dc639d77"
     max-usages: 5
     catch-success: 70.0
     catchable-entities:
       - ALL_ANIMALS
       - ALL_WATER_MOBS
-  master_ball:
-    display-name: "Master Ball"
-    head-texture: "https://textures.minecraft.net/texture/556d2a1cdda8778ffd833c7a5f539b87f99eb83a5d19599e5fa8e6c966c37c2"
-    max-usages: 4
-    catch-success: 70.0
-    buy:
-      enabled: false
-      price: 1000
-      amount: 5
-    effects:
-      catch:
-        particle:
-          name: FLAME
-          amount: 100
-      free:
-        particle:
-          name: CLOUD
-          amount: 80
-    catchable-entities:
-      - ALL_MOBS
-    blacklisted-entities:
-      - ENDER_DRAGON
-      - WITHER
-      - GHAST

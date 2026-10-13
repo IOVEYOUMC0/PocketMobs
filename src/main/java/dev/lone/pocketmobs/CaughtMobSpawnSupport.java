@@ -22,8 +22,13 @@ final class CaughtMobSpawnSupport
 
         try
         {
-            Entity liveEntity = Bukkit.getEntity(entity.getUniqueId());
-            if (liveEntity == null || liveEntity.isDead())
+            // Do not resolve the entity again through Bukkit.getEntity(). On Folia
+            // the global lookup can briefly return null immediately after
+            // EntitySnapshot.createEntity(), even though that call already created
+            // a valid entity on the owning region. Treating that transient lookup
+            // miss as a failed restore caused the fallback path to create a second
+            // mob for one release.
+            if (entity.isDead() || !entity.isValid())
             {
                 CaughtMob.debugLog("Discarding spawned entity because it is not present in the world after creation.");
                 return false;
@@ -48,8 +53,8 @@ final class CaughtMobSpawnSupport
         {
             // Native, complete restore from the captured SNBT: createEntity round-trips
             // base fields, subtype data, attributes, effects, variant, custom name and the
-            // entity PDC in one call. prepareSpawnedEntity re-teleports to the exact target
-            // so position never depends on the stored NBT Pos.
+            // entity PDC in one call. The target location is already supplied to
+            // createEntity, so no synchronous cross-region teleport is needed.
             EntitySnapshot snapshot = Bukkit.getEntityFactory().createEntitySnapshot(mob.nbtTagCompound);
             if (snapshot == null)
             {
@@ -62,21 +67,23 @@ final class CaughtMobSpawnSupport
                 return null;
             }
 
-            prepareSpawnedEntity(entity, location);
-            CaughtMob.debugLog("Spawned entity from EntitySnapshot: " + entity.getType());
-            if (isSpawnUsable(entity))
-            {
-                return entity;
-            }
-
-            CaughtMob.debugLog("EntitySnapshot spawn produced an unusable entity, falling back.");
             try
             {
-                entity.remove();
+                prepareSpawnedEntity(entity, location);
             }
-            catch (Exception ignored)
+            catch (Exception preparationException)
             {
+                // The snapshot entity already exists. A failure while applying
+                // velocity/metadata must not make the caller create a second
+                // fallback entity.
+                CaughtMob.debugLog("Failed to finish preparing snapshot entity: " + preparationException.getMessage());
             }
+            CaughtMob.debugLog("Spawned entity from EntitySnapshot: " + entity.getType());
+            // EntitySnapshot.createEntity() has already created the entity. Do not
+            // treat a transient isValid()/region-state result as a failed restore,
+            // because CaughtMob.spawnEntity() would then create a second fallback
+            // entity while the snapshot entity is still present.
+            return entity;
         }
         catch (Exception e)
         {
@@ -99,7 +106,6 @@ final class CaughtMobSpawnSupport
         Entity entity = location.getWorld().spawn(location, clazz, newEntity ->
                 newEntity.setMetadata("SpawnedWithPB", new FixedMetadataValue(Main.inst, true)));
 
-        entity.teleport(location);
         entity.setVelocity(new Vector(0, 0.1f, 0));
 
         if (isSpawnUsable(entity))
@@ -120,7 +126,6 @@ final class CaughtMobSpawnSupport
 
     private static void prepareSpawnedEntity(Entity entity, Location location)
     {
-        entity.teleport(location);
         entity.setMetadata("SpawnedWithPB", new FixedMetadataValue(Main.inst, true));
         entity.setVelocity(new Vector(0, 0.1f, 0));
     }

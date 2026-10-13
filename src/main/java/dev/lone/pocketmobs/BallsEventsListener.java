@@ -15,16 +15,22 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockDispenseEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityRemoveEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.event.inventory.InventoryPickupItemEvent;
+import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.inventory.PrepareItemCraftEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerAttemptPickupItemEvent;
+import org.bukkit.event.player.PlayerPickupItemEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.world.WorldUnloadEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.Inventory;
@@ -42,6 +48,8 @@ import java.util.logging.Level;
 public class BallsEventsListener implements Listener
 {
     private static final long CLEANUP_INTERVAL = 20L * 30;
+    private static final long THROWN_BALL_TIMEOUT = 20L * 5;
+    private static final long MISSED_BALL_RETURN_DELAY = 20L * 3;
     private static final int MAX_CACHE_SIZE = Constants.MAX_CACHE_SIZE;
 
     private final Map<Integer, Item> balls = new ConcurrentHashMap<>();
@@ -55,6 +63,31 @@ public class BallsEventsListener implements Listener
     private final Object ballOperationLock = new Object();
 
     private ScheduledTask cleanupTask;
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    private void onPlayerJoin(PlayerJoinEvent e)
+    {
+        migrateBallFormatting(e.getPlayer().getInventory());
+        migrateBallFormatting(e.getPlayer().getEnderChest());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    private void onInventoryOpen(InventoryOpenEvent e)
+    {
+        migrateBallFormatting(e.getInventory());
+    }
+
+    private void migrateBallFormatting(Inventory inventory)
+    {
+        for (int slot = 0; slot < inventory.getSize(); slot++)
+        {
+            ItemStack item = inventory.getItem(slot);
+            if (Ball.removeItalicFormatting(item))
+            {
+                inventory.setItem(slot, item);
+            }
+        }
+    }
 
     public BallsEventsListener()
     {
@@ -116,7 +149,7 @@ public class BallsEventsListener implements Listener
 
     public void cleanupAll()
     {
-        // 停止定时清理任务
+        // 鍋滄瀹氭椂娓呯悊浠诲姟
         if (cleanupTask != null)
         {
             cleanupTask.cancel();
@@ -144,16 +177,13 @@ public class BallsEventsListener implements Listener
     }
     
     /**
-     * 玩家退出时清理投掷中的球
-     */
+     * 鐜╁閫€鍑烘椂娓呯悊鎶曟幏涓殑鐞?     */
     @EventHandler(priority = EventPriority.MONITOR)
     private void onPlayerQuit(PlayerQuitEvent e)
     {
         Player player = e.getPlayer();
         craftMessageCooldowns.remove(player.getUniqueId());
         HologramUtil.clearPlayerCooldown(player.getUniqueId());
-        
-        // 清理该玩家投掷的所有球。location 在事件线程（拥有该玩家）上读取后再传入。
         Location target = player.getLocation();
         synchronized (ballOperationLock)
         {
@@ -169,8 +199,7 @@ public class BallsEventsListener implements Listener
                     balls.remove(entityId);
                     if (ballItem != null)
                     {
-                        // 球可能归属其它区域线程，恢复操作在球自身线程上执行。
-                        recoverBallOnItsThread(ballItem, target);
+                        // 鐞冨彲鑳藉綊灞炲叾瀹冨尯鍩熺嚎绋嬶紝鎭㈠鎿嶄綔鍦ㄧ悆鑷韩绾跨▼涓婃墽琛屻€?                        recoverBallOnItsThread(ballItem, target);
                     }
                 }
             }
@@ -178,8 +207,7 @@ public class BallsEventsListener implements Listener
     }
     
     /**
-     * 世界卸载时清理该世界中的球
-     */
+     * 涓栫晫鍗歌浇鏃舵竻鐞嗚涓栫晫涓殑鐞?     */
     @EventHandler(priority = EventPriority.MONITOR)
     private void onWorldUnload(WorldUnloadEvent e)
     {
@@ -204,14 +232,12 @@ public class BallsEventsListener implements Listener
     }
     
     /**
-     * 玩家死亡时处理装着生物的球
+     * 鐜╁姝讳骸鏃跺鐞嗚鐫€鐢熺墿鐨勭悆
      */
     @EventHandler(priority = EventPriority.HIGH)
     private void onPlayerDeath(PlayerDeathEvent e)
     {
         Player player = e.getEntity();
-
-        // 确保球会掉落在死亡位置；location 在事件线程上读取。
         Location target = player.getLocation();
         synchronized (ballOperationLock)
         {
@@ -230,14 +256,11 @@ public class BallsEventsListener implements Listener
     }
     
     /**
-     * 玩家切换世界时检查权限
-     */
+     * 鐜╁鍒囨崲涓栫晫鏃舵鏌ユ潈闄?     */
     @EventHandler(priority = EventPriority.HIGH)
     private void onPlayerChangedWorld(PlayerChangedWorldEvent e)
     {
         Player player = e.getPlayer();
-        
-        // 清理旧世界中该玩家投掷的球；location 在事件线程上读取。
         Location target = player.getLocation();
         synchronized (ballOperationLock)
         {
@@ -253,7 +276,7 @@ public class BallsEventsListener implements Listener
                     balls.remove(entityId);
                     if (ballItem != null)
                     {
-                        // 将球返回给玩家（在球自身线程上传送）
+                        // 灏嗙悆杩斿洖缁欑帺瀹讹紙鍦ㄧ悆鑷韩绾跨▼涓婁紶閫侊級
                         recoverBallOnItsThread(ballItem, target);
                     }
                 }
@@ -305,10 +328,8 @@ public class BallsEventsListener implements Listener
     }
     
     /**
-     * 创建投掷的球的通用方法
-     * @param player 投掷者
-     * @param ball 球物品
-     * @return 投掷结果，包含掉落物和实体ID
+     * 鍒涘缓鎶曟幏鐨勭悆鐨勯€氱敤鏂规硶
+     * @param player 鎶曟幏鑰?     * @param ball 鐞冪墿鍝?     * @return 鎶曟幏缁撴灉锛屽寘鍚帀钀界墿鍜屽疄浣揑D
      */
     private ThrownBallResult createThrownBall(Player player, ItemStack ball)
     {
@@ -339,12 +360,32 @@ public class BallsEventsListener implements Listener
             }
         }
 
+        // Protection plugins can cancel or consume the projectile-hit event.
+        // If that happens, the normal recovery path is never called and the item
+        // would remain permanently unpickable. Recover it on its owning region
+        // after a short timeout unless a hit handler already claimed it.
+        drop.getScheduler().runDelayed(Main.inst, task -> {
+            boolean stillTracked;
+            synchronized (ballOperationLock)
+            {
+                stillTracked = balls.get(drop.getEntityId()) == drop;
+                if (stillTracked)
+                {
+                    balls.remove(drop.getEntityId());
+                    ballsByPlayer.remove(drop.getEntityId());
+                }
+            }
+            if (stillTracked && !drop.isDead())
+            {
+                leaveBallRecoverable(drop, drop.getLocation());
+            }
+        }, null, THROWN_BALL_TIMEOUT);
+
         return new ThrownBallResult(drop, drop.getEntityId());
     }
     
     /**
-     * 投掷球结果的数据类
-     */
+     * 鎶曟幏鐞冪粨鏋滅殑鏁版嵁绫?     */
     private static class ThrownBallResult
     {
         final Item drop;
@@ -357,7 +398,7 @@ public class BallsEventsListener implements Listener
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = false)
     private void onSnowballHit(ProjectileHitEvent e)
     {
         if (!(e.getEntity() instanceof Snowball))
@@ -431,6 +472,43 @@ public class BallsEventsListener implements Listener
         return null;
     }
 
+    /**
+     * Returns the lang key explaining why {@code mobEntity} is a pet that
+     * {@code player} may not catch, or {@code null} when catching is allowed.
+     * <p>
+     * Vanilla tamed pets (wolf, cat, parrot, horse, ...) can still be caught by
+     * their own owner. Mobs managed by pet plugins (MyPet & co.) can never be
+     * caught: their data belongs to the plugin, not to the world, and storing
+     * them in a ball would corrupt or duplicate the pet.
+     */
+    private String petCatchRejectionKey(Player player, Entity mobEntity)
+    {
+        if (Settings.blockOthersTamedPets)
+        {
+            if (mobEntity instanceof Tameable tameable && tameable.isTamed())
+            {
+                AnimalTamer tamer = tameable.getOwner();
+                if (tamer == null || !tamer.getUniqueId().equals(player.getUniqueId()))
+                    return "cant-catch-tamed-pet";
+            }
+
+            // A mob led on a leash by someone else is being walked by its
+            // holder: treat it like a tamed pet.
+            if (mobEntity instanceof LivingEntity living
+                    && living.isLeashed()
+                    && living.getLeashHolder() instanceof Player holder
+                    && !holder.getUniqueId().equals(player.getUniqueId()))
+            {
+                return "cant-catch-tamed-pet";
+            }
+        }
+
+        if (Settings.blockPetPluginPets && PetProtection.isPetPluginMob(mobEntity))
+            return "cant-catch-plugin-pet";
+
+        return null;
+    }
+
     private void handleCatch(Item ballEntity, Player player, Entity mobEntity, int PBCatch)
     {
         Ball settings = Main.inst.ballsManager.byItemStack(ballEntity.getItemStack());
@@ -454,6 +532,13 @@ public class BallsEventsListener implements Listener
             return;
         }
 
+        String petRejectKey = petCatchRejectionKey(player, mobEntity);
+        if (petRejectKey != null)
+        {
+            rejectCatch(ballEntity, player, PBCatch, petRejectKey);
+            return;
+        }
+
         // Detach the entity from any vehicle/passenger relationship before capture.
         if (mobEntity.isInsideVehicle())
             mobEntity.leaveVehicle();
@@ -467,6 +552,17 @@ public class BallsEventsListener implements Listener
             return;
         }
 
+        if (!DominionProtectionUtils.canCatchMob(player, mobEntity, mobEntity.getLocation()))
+        {
+            rejectCatch(ballEntity, player, PBCatch, "cant-catch-other-dominion");
+            return;
+        }
+
+        if (!PerfectSelfWorldProtectionUtils.canCatchMob(player, mobEntity))
+        {
+            rejectCatch(ballEntity, player, PBCatch, "cant-catch-here");
+            return;
+        }
         ItemStack ballItemStack = ballEntity.getItemStack();
 
         // A depleted limited-usage ball (0 left) must never be able to catch.
@@ -601,7 +697,27 @@ public class BallsEventsListener implements Listener
         {
             ballEntity.setCustomNameVisible(true);
             ballEntity.setCustomName(Settings.lang.getColored("missed-catch"));
-            settleBall(ballEntity);
+            if (Settings.returnToInvCatch)
+            {
+                Location playerLocation = player != null ? player.getLocation() : null;
+                if (playerLocation != null)
+                {
+                    ballEntity.getScheduler().runDelayed(Main.inst, task -> {
+                        if (!ballEntity.isDead())
+                        {
+                            returnBallToPlayer(ballEntity, player);
+                        }
+                    }, null, MISSED_BALL_RETURN_DELAY);
+                }
+                else
+                {
+                    settleBall(ballEntity);
+                }
+            }
+            else
+            {
+                settleBall(ballEntity);
+            }
         }
         else
         {
@@ -652,8 +768,17 @@ public class BallsEventsListener implements Listener
             return;
 
         int PBSpawn = e.getEntity().getMetadata("PBSpawn").get(0).asInt();
-        Item drop = balls.get(PBSpawn);
-        Player player = ballsByPlayer.get(PBSpawn);
+        Item drop;
+        Player player;
+        synchronized (ballOperationLock)
+        {
+            // Claim this release exactly once. ProjectileHitEvent can be observed
+            // more than once by concurrent region/event processing; leaving the
+            // entries in the maps until the end allowed every callback to spawn
+            // the stored mob again.
+            drop = balls.remove(PBSpawn);
+            player = ballsByPlayer.remove(PBSpawn);
+        }
 
         if (drop == null)
         {
@@ -681,8 +806,7 @@ public class BallsEventsListener implements Listener
 
         if (Ball.hasMob(drop.getItemStack()))
         {
-            // 世界白名单校验：与捕捉(handleCatch)和发射器(onDropperDispense)路径保持一致，
-            // 否则玩家可用满球在被禁用的世界里释放 mob，绕过世界限制。
+            // 涓栫晫鐧藉悕鍗曟牎楠岋細涓庢崟鎹?handleCatch)鍜屽彂灏勫櫒(onDropperDispense)璺緞淇濇寔涓€鑷达紝
             if (!isWorldAllowed(hitLocation.getWorld().getName()))
             {
                 if (player != null)
@@ -698,7 +822,7 @@ public class BallsEventsListener implements Listener
                 return;
             }
 
-            // 检查保护插件权限
+            // Check protection plugin permission.
             if (player == null)
             {
                 leaveBallRecoverable(drop, hitLocation);
@@ -714,13 +838,46 @@ public class BallsEventsListener implements Listener
                 return;
             }
 
-            Entity spawnedMob = Ball.freeMob(drop, hitLocation);
+            EntityType storedMobType = Ball.getStoredMobType(drop.getItemStack());
+            if (storedMobType != null
+                    && storedMobType.getEntityClass() != null
+                    && Monster.class.isAssignableFrom(storedMobType.getEntityClass())
+                    && !PerfectSelfWorldProtectionUtils.canReleaseMonster(player, hitLocation))
+            {
+                returnBallToPlayer(drop, player);
+                showMessageFeedback(player, Settings.lang.getColored("cant-release-here"));
+                cleanupMaps(PBSpawn);
+                return;
+            }
+
+            if (storedMobType != null
+                    && !DominionProtectionUtils.canReleaseMob(player, storedMobType, hitLocation))
+            {
+                returnBallToPlayer(drop, player);
+                showMessageFeedback(player, Settings.lang.getColored("cant-release-here"));
+                cleanupMaps(PBSpawn);
+                return;
+            }
+
+            // Release from a detached copy first. This keeps the live ball intact
+            // until all release-protection checks have passed.
+            ItemStack loadedBall = drop.getItemStack().clone();
+            Entity spawnedMob = Ball.freeMob(loadedBall, hitLocation);
 
             if (spawnedMob != null)
             {
-                drop.remove();
+                if (!PerfectSelfWorldProtectionUtils.canReleaseMob(player, spawnedMob))
+                {
+                    spawnedMob.remove();
+                    returnBallToPlayer(drop, player);
+                    showMessageFeedback(player, Settings.lang.getColored("cant-release-here"));
+                    cleanupMaps(PBSpawn);
+                    return;
+                }
 
-                // Build the empty ball first so we can inspect its remaining usages.
+                // Reuse the visible thrown item instead of deleting it and creating
+                // another Item entity. This guarantees the entity the player sees has
+                // its mob PDC/lore cleared and its infinite flight pickup delay reset.
                 ItemStack emptyBall = Ball.removeMob(drop.getItemStack().clone());
                 Ball newBallSettings = Main.inst.ballsManager.byItemStack(emptyBall);
 
@@ -741,20 +898,18 @@ public class BallsEventsListener implements Listener
 
                 if (!depleted)
                 {
-                    Item newPoke = hitLocation.getWorld().dropItem(hitLocation, emptyBall);
-                    newPoke.setCustomNameVisible(false);
-                    newPoke.setPickupDelay(0);
-                    if (Settings.returnToInvFree && player != null)
-                    {
-                        Location playerLocation = player.getLocation();
-                        newPoke.teleportAsync(playerLocation).thenAccept(ok -> {
-                            if (ok && !newPoke.isDead())
-                            {
-                                newPoke.setVelocity(new Vector(0, 0, 0));
-                                newPoke.setPickupDelay(0);
-                            }
-                        });
-                    }
+                    drop.setItemStack(emptyBall);
+                    drop.setCustomName(null);
+                    drop.setCustomNameVisible(false);
+                    settleBall(drop);
+                    Location recoveryLocation = Settings.returnToInvFree && player != null
+                            ? player.getLocation()
+                            : hitLocation;
+                    leaveBallRecoverable(drop, recoveryLocation);
+                }
+                else
+                {
+                    drop.remove();
                 }
             }
             else
@@ -843,6 +998,83 @@ public class BallsEventsListener implements Listener
         }
     }
 
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = false)
+    private void onPlayerPickupBall(PlayerAttemptPickupItemEvent e)
+    {
+        Ball.removeItalicFormatting(e.getItem().getItemStack());
+        if (Ball.is(e.getItem().getItemStack()) && e.isCancelled())
+        {
+            Player player = e.getPlayer();
+            Item item = e.getItem();
+            ItemStack stack = item.getItemStack().clone();
+            Map<Integer, ItemStack> leftovers = player.getInventory().addItem(stack);
+            e.setCancelled(true);
+            if (leftovers.isEmpty())
+            {
+                item.remove();
+            }
+            else
+            {
+                item.setItemStack(leftovers.values().iterator().next());
+            }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = false)
+    private void onEntityPickupBall(EntityPickupItemEvent e)
+    {
+        // Some protection plugins cancel the parent entity-pickup event instead
+        // of PlayerAttemptPickupItemEvent. Handle that path as well so a released
+        // empty ball is not left permanently unpickable for visitors.
+        Ball.removeItalicFormatting(e.getItem().getItemStack());
+        if (e.getEntity() instanceof Player && Ball.is(e.getItem().getItemStack()) && e.isCancelled())
+        {
+            Player player = (Player) e.getEntity();
+            Item item = e.getItem();
+            Map<Integer, ItemStack> leftovers = player.getInventory().addItem(item.getItemStack().clone());
+            e.setCancelled(true);
+            if (leftovers.isEmpty())
+            {
+                item.remove();
+            }
+            else
+            {
+                item.setItemStack(leftovers.values().iterator().next());
+            }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = false)
+    @SuppressWarnings("deprecation")
+    private void onLegacyPlayerPickupBall(PlayerPickupItemEvent e)
+    {
+        // Keep compatibility with protection plugins that still cancel the legacy
+        // PlayerPickupItemEvent instead of the modern parent/attempt events.
+        if (Ball.is(e.getItem().getItemStack()) && e.isCancelled())
+        {
+            Map<Integer, ItemStack> leftovers = e.getPlayer().getInventory().addItem(e.getItem().getItemStack().clone());
+            e.setCancelled(true);
+            if (leftovers.isEmpty())
+            {
+                e.getItem().remove();
+            }
+            else
+            {
+                e.getItem().setItemStack(leftovers.values().iterator().next());
+            }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    private void onBallPlace(BlockPlaceEvent e)
+    {
+        if (Ball.is(e.getItemInHand()))
+        {
+            // A PocketMobs ball is an interaction item, never a placeable block.
+            e.setCancelled(true);
+        }
+    }
+
     @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGH)
     private void onDropperDispense(BlockDispenseEvent e)
     {
@@ -906,7 +1138,7 @@ public class BallsEventsListener implements Listener
             if (spawned == null)
             {
                 // Spawn failed: put the still-loaded ball back so it stays
-                // recoverable (net zero — one removed, one restored, no dupe).
+                // recoverable (net zero 鈥?one removed, one restored, no dupe).
                 for (ItemStack leftover : inv.addItem(ballTemplate.clone()).values())
                 {
                     spawnLocation.getWorld().dropItem(spawnLocation, leftover);
@@ -915,7 +1147,7 @@ public class BallsEventsListener implements Listener
             }
 
             // Mob freed: hand back the empty ball, unless it is a spent limited-usage
-            // ball (0 left) — those would be a useless, exploitable 0-use husk, so
+            // ball (0 left) 鈥?those would be a useless, exploitable 0-use husk, so
             // don't drop them. Unlimited balls skip usage accounting and are exempt;
             // getUsages() returns 1 when the tag is absent, so legacy balls drop.
             ItemStack emptyBall = Ball.removeMob(ballTemplate.clone());
@@ -950,8 +1182,8 @@ public class BallsEventsListener implements Listener
     }
     
     /**
-     * 检查是否为Boss实体
-     * Boss实体不应该被捕捉，以保持游戏平衡
+     * 妫€鏌ユ槸鍚︿负Boss瀹炰綋
+     * Boss瀹炰綋涓嶅簲璇ヨ鎹曟崏锛屼互淇濇寔娓告垙骞宠　
      */
     private boolean isBossEntity(EntityType type)
     {
@@ -979,7 +1211,9 @@ public class BallsEventsListener implements Listener
 
     private boolean isWorldAllowed(String worldName)
     {
-        return Settings.worlds.isEmpty() || Settings.worlds.contains(worldName);
+        if (Settings.worldWhitelistEnabled && !Settings.worlds.contains(worldName))
+            return false;
+        return !Settings.worldBlacklistEnabled || !Settings.worldBlacklist.contains(worldName);
     }
 
     private void returnBallToPlayer(Item ballEntity, Player player)
@@ -997,6 +1231,7 @@ public class BallsEventsListener implements Listener
     {
         ballEntity.setPickupDelay(0);
         ballEntity.setInvulnerable(false);
+        ballEntity.removeMetadata("PBIsBall", Main.inst);
     }
 
     /**
@@ -1013,6 +1248,7 @@ public class BallsEventsListener implements Listener
     {
         if (ballEntity.isDead())
             return;
+        settleBall(ballEntity);
         ballEntity.teleportAsync(location).thenAccept(success -> {
             if (success && !ballEntity.isDead())
             {
@@ -1022,3 +1258,5 @@ public class BallsEventsListener implements Listener
         });
     }
 }
+
+

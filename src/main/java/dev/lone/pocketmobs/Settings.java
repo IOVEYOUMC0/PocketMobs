@@ -9,7 +9,7 @@ import java.util.List;
 
 public class Settings
 {
-    private static final int CURRENT_CONFIG_VERSION = 3;
+    private static final int CURRENT_CONFIG_VERSION = 5;
 
     // These are read from Folia region threads (event handlers) while reload()
     // writes them on another thread, so they are volatile for safe publication.
@@ -20,12 +20,17 @@ public class Settings
     public static volatile CustomConfigFile lang;
     public static volatile CustomConfigFile config;
     public static volatile List<String> worlds;
+    public static volatile List<String> worldBlacklist;
+    public static volatile boolean worldWhitelistEnabled;
+    public static volatile boolean worldBlacklistEnabled;
     public static volatile boolean returnToInvFree;
     public static volatile boolean returnToInvCatch;
     public static volatile boolean dropperSpawnMob;
     public static volatile boolean reduceUsagesOnMiss;
     public static volatile boolean restoreFullHealthOnRelease;
     public static volatile boolean keepEntityUuid;
+    public static volatile boolean blockOthersTamedPets;
+    public static volatile boolean blockPetPluginPets;
     public static volatile boolean debug;
     private static volatile boolean loaded = false;
 
@@ -57,12 +62,17 @@ public class Settings
 
             // Initialize safe defaults to reduce follow-up failures.
             worlds = new ArrayList<>();
+            worldBlacklist = new ArrayList<>();
+            worldWhitelistEnabled = false;
+            worldBlacklistEnabled = false;
             returnToInvFree = false;
             returnToInvCatch = false;
             dropperSpawnMob = false;
             reduceUsagesOnMiss = true;
             restoreFullHealthOnRelease = false;
             keepEntityUuid = false;
+            blockOthersTamedPets = true;
+            blockPetPluginPets = true;
             debug = false;
         }
     }
@@ -129,11 +139,23 @@ public class Settings
 
     private static void readRuntimeSettings()
     {
-        worlds = config.getConfig().getStringList("worlds");
-        if (worlds == null || worlds.isEmpty())
+        FileConfiguration cfg = config.getConfig();
+        worldWhitelistEnabled = config.getBoolean("world-filter.whitelist.enabled", true);
+        worldBlacklistEnabled = config.getBoolean("world-filter.blacklist.enabled", false);
+        worlds = cfg.getStringList("world-filter.whitelist.worlds");
+        worldBlacklist = cfg.getStringList("world-filter.blacklist.worlds");
+
+        if (worlds == null)
         {
             worlds = new ArrayList<>();
-            Main.inst.getLogger().info("No world restrictions configured; PocketMobs is enabled in all worlds.");
+        }
+        if (worldBlacklist == null)
+        {
+            worldBlacklist = new ArrayList<>();
+        }
+        if (!worldWhitelistEnabled && !worldBlacklistEnabled)
+        {
+            Main.inst.getLogger().info("World whitelist and blacklist are disabled; PocketMobs is enabled in all worlds.");
         }
 
         returnToInvFree = config.getBoolean("logic.ball-behaviour.return-to-inventory.on-free-mob", false);
@@ -142,6 +164,8 @@ public class Settings
         reduceUsagesOnMiss = config.getBoolean("logic.ball-behaviour.reduce-usages.miss-target", true);
         restoreFullHealthOnRelease = config.getBoolean("logic.ball-behaviour.restore-full-health.on-free-mob", false);
         keepEntityUuid = config.getBoolean("keep-entity-uuid", false);
+        blockOthersTamedPets = config.getBoolean("logic.catch-protection.block-other-players-pets", true);
+        blockPetPluginPets = config.getBoolean("logic.catch-protection.block-pet-plugin-pets", true);
         debug = config.getBoolean("debug", false);
     }
 
@@ -184,6 +208,41 @@ public class Settings
                 if (!cfg.contains("logic.ball-behaviour.restore-full-health.on-free-mob"))
                 {
                     cfg.set("logic.ball-behaviour.restore-full-health.on-free-mob", false);
+                }
+            }
+
+            // Version 3 -> 4: migrate the legacy top-level worlds whitelist and
+            // add independently switchable whitelist/blacklist world filters.
+            if (version < 4)
+            {
+                if (!cfg.contains("world-filter.whitelist.enabled"))
+                {
+                    cfg.set("world-filter.whitelist.enabled", true);
+                }
+                if (!cfg.contains("world-filter.whitelist.worlds"))
+                {
+                    cfg.set("world-filter.whitelist.worlds", cfg.getStringList("worlds"));
+                }
+                if (!cfg.contains("world-filter.blacklist.enabled"))
+                {
+                    cfg.set("world-filter.blacklist.enabled", false);
+                }
+                if (!cfg.contains("world-filter.blacklist.worlds"))
+                {
+                    cfg.set("world-filter.blacklist.worlds", new ArrayList<String>());
+                }
+            }
+
+            // Version 4 -> 5: add pet capture protections.
+            if (version < 5)
+            {
+                if (!cfg.contains("logic.catch-protection.block-other-players-pets"))
+                {
+                    cfg.set("logic.catch-protection.block-other-players-pets", true);
+                }
+                if (!cfg.contains("logic.catch-protection.block-pet-plugin-pets"))
+                {
+                    cfg.set("logic.catch-protection.block-pet-plugin-pets", true);
                 }
             }
 

@@ -1,41 +1,88 @@
 # PocketMobs 配置文件
-# Configuration version - DO NOT MODIFY
-config-version: 3
+# 配置版本号，请勿修改。
+config-version: 5
+# 使用的语言文件名称，对应 lang/zh.yml、lang/en.yml 等文件。
 lang: zh
+# 是否启用调试日志；排查问题时可以临时开启。
 debug: false
 logic:
+  # 是否启用精灵球购买功能。
   buy:
     enabled: false
+  # 是否启用精灵球合成功能。
   craft:
-    enabled: true
+    enabled: false
   ball-behaviour:
+    # 精灵球成功释放或捕捉后的回收设置。
     return-to-inventory:
-      on-free-mob: false
-      on-catch-mob: false
+      # 释放满球成功后，将空球传送到玩家位置附近。
+      on-free-mob: true
+      # 捕捉成功或抓空气失败后，将精灵球传送到玩家位置附近。
+      on-catch-mob: true
     restore-full-health:
-      on-free-mob: false
+      # 释放生物时是否恢复到满血。
+      on-free-mob: true
     reduce-usages:
+      # 投掷后没有命中生物时是否扣除一次使用次数。
       miss-target: true
     # 满球被发射器(dropper)射出时，在发射器处直接释放存储的生物。
-    # When a filled ball is dispensed from a dropper, spawn the stored mob there.
     dropper-spawns-mob: false
+  # 捕捉保护：防止把其他玩家的宠物收进球里。
+  catch-protection:
+    # 拦截捕捉其他玩家驯服的宠物（狼、猫、鹦鹉、马等，含被其他玩家用拴绳牵着的生物）。
+    # 玩家仍可捕捉自己的宠物。
+    block-other-players-pets: true
+    # 拦截捕捉宠物插件生成的宠物（如 MyPet）。这类宠物的数据由插件管理，捕捉会导致宠物损坏或复制。
+    block-pet-plugin-pets: true
 keep-entity-uuid: false
-worlds:
-  - world
-  - world_nether
-  - world_the_end
+# 世界过滤设置：白名单和黑名单可以分别开关。
+#
+# 白名单开启后，只允许 whitelist.worlds 中的世界使用精灵球功能。
+# 黑名单开启后，blacklist.worlds 中的世界禁止使用精灵球功能。
+# 两者同时开启时，黑名单优先；两者都关闭时，不限制世界。
+#
+# 如果服务器安装了 PerfectSelfWorld，捕捉生物时会模拟一次玩家对目标生物的
+# 伤害事件，用于检查玩家是否拥有该家园区域的伤害权限；此操作不会实际造成伤害。
+# 没有伤害权限时禁止捕捉，未安装 PerfectSelfWorld 时会自动跳过此检查。
+world-filter:
+  # 世界白名单设置。开启后，只有下方 worlds 列表中的世界可以使用精灵球功能。
+  whitelist:
+    # 是否启用世界白名单。
+    enabled: true
+    # 允许使用精灵球功能的世界名称。
+    worlds:
+      - world
+      - world_nether
+      - world_the_end
+  # 世界黑名单设置。开启后，下方 worlds 列表中的世界禁止使用精灵球功能。
+  blacklist:
+    # 是否启用世界黑名单；黑名单优先于白名单。
+    enabled: false
+    # 禁止使用精灵球功能的世界名称。
+    worlds: []
+# 全局精灵球默认效果。单个精灵球可以在 balls.yml 中覆盖这些设置。
 default:
   ball:
     effects:
+      # 捕捉成功时播放的效果。
       catch:
+        # 粒子效果设置。
         particle:
+          # Bukkit 粒子类型。
           name: ENTITY_EFFECT
+          # 粒子数量。
           amount: 50
+          # 粒子颜色，仅部分粒子类型支持；使用十六进制颜色。
           color: "#00FF00"
+        # 声音效果设置。
         sound:
+          # Bukkit 声音类型。
           name: BLOCK_ANVIL_PLACE
+          # 声音音量。
           volume: 1
+          # 声音音调，通常范围为 0.5 至 2.0。
           pitch: 2
+      # 释放生物成功时播放的效果。
       free:
         particle:
           name: EXPLOSION
@@ -44,6 +91,7 @@ default:
           name: ENTITY_CHICKEN_EGG
           volume: 1
           pitch: 2
+      # 捕捉失败或没有命中生物时播放的效果。
       missed:
         particle:
           name: CRIT
@@ -52,6 +100,7 @@ default:
           name: ENTITY_ARMOR_STAND_HIT
           volume: 1
           pitch: 2
+      # 释放生物失败时播放的效果。
       not_spawned:
         particle:
           name: SMOKE

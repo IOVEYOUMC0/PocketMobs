@@ -13,6 +13,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -52,6 +53,8 @@ public class Ball
     public ShapedRecipe recipe;
 
     public List<String> lore;
+    private List<String> configuredLore = new ArrayList<>();
+    private List<String> configuredFilledLore = new ArrayList<>();
 
     public List<String> catchableMobsStringList;
     public List<Component> catchableMobsLoreComponents;
@@ -136,6 +139,124 @@ public class Ball
         this.lore = lore;
     }
 
+    public void setConfiguredLore(List<String> lore)
+    {
+        this.configuredLore = lore != null ? new ArrayList<>(lore) : new ArrayList<>();
+    }
+
+    public void setConfiguredFilledLore(List<String> lore)
+    {
+        this.configuredFilledLore = lore != null ? new ArrayList<>(lore) : new ArrayList<>();
+    }
+
+    private List<Component> getConfiguredFilledLore(ItemStack itemStack, CaughtMob caughtMob, String overrideName)
+    {
+        List<Component> result = new ArrayList<>();
+        if (configuredFilledLore == null || configuredFilledLore.isEmpty()) return result;
+
+        String mobName = overrideName != null ? overrideName : "{mob-name-component}";
+        List<String> detailLines = caughtMob.getDisplayLoreLines();
+        for (String line : configuredFilledLore)
+        {
+            String rendered = line.replace("{usages}", String.valueOf(getUsages(itemStack)))
+                    .replace("{max-usages}", String.valueOf(maxUsages))
+                    .replace("{catch-chance}", getCatchSuccess(itemStack) + "%")
+                    .replace("{mob-life}", String.valueOf(caughtMob.getLife()))
+                    .replace("{mob-name}", mobName);
+            if (Settings.lang != null)
+            {
+                rendered = rendered.replace("{lore-info}", Settings.lang.getColored("lore-info"))
+                        .replace("{lore-catch-chance}", Settings.lang.getColored("lore-catch-chance"))
+                        .replace("{lore-usages}", Settings.lang.getColored("lore-usages"))
+                        .replace("{lore-usage}", Settings.lang.getColored("lore-usage"))
+                        .replace("{lore-throw}", Settings.lang.getColored("lore-throw"))
+                        .replace("{lore-release}", Settings.lang.getColored("lore-release"))
+                        .replace("{lore-mob-name}", Settings.lang.getColored("lore-mob-name"))
+                        .replace("{lore-mob-details}", Settings.lang.getColored("lore-mob-details"))
+                        .replace("{lore-mob-life}", Settings.lang.getColored("lore-mob-life"));
+            }
+            if (rendered.contains("{mob-details}"))
+            {
+                String prefix = rendered.replace("{mob-details}", "");
+                for (String detailLine : detailLines)
+                {
+                    result.add(parseLoreLine(prefix + detailLine));
+                }
+            }
+            else if (rendered.contains("{mob-name-component}"))
+            {
+                String prefix = rendered.replace("{mob-name-component}", "");
+                result.add(parseLoreLine(prefix).append(LocaleUtils.getEntityTranslatable(caughtMob.getType())
+                        .color(NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)));
+            }
+            else
+            {
+                result.add(parseLoreLine(rendered));
+            }
+        }
+        return result;
+    }
+
+    private List<Component> getConfiguredLore(ItemStack itemStack)
+    {
+        List<Component> result = new ArrayList<>();
+        if (configuredLore == null || configuredLore.isEmpty()) return result;
+        for (String line : configuredLore)
+        {
+            String rendered = line.replace("{usages}", String.valueOf(getUsages(itemStack)))
+                    .replace("{max-usages}", String.valueOf(maxUsages))
+                    .replace("{catch-chance}", getCatchSuccess(itemStack) + "%");
+            if (Settings.lang != null)
+            {
+                rendered = rendered.replace("{lore-info}", Settings.lang.getColored("lore-info"))
+                        .replace("{lore-catch-chance}", Settings.lang.getColored("lore-catch-chance"))
+                        .replace("{lore-usages}", Settings.lang.getColored("lore-usages"))
+                        .replace("{lore-catchable}", Settings.lang.getColored("lore-catchable"))
+                        .replace("{lore-usage}", Settings.lang.getColored("lore-usage"))
+                        .replace("{lore-throw}", Settings.lang.getColored("lore-throw"))
+                        .replace("{lore-release}", Settings.lang.getColored("lore-release"));
+            }
+            if (rendered.contains("{catchable-mobs}"))
+            {
+                String prefix = rendered.replace("{catchable-mobs}", "");
+                if (catchableMobsLoreComponents != null && !catchableMobsLoreComponents.isEmpty())
+                {
+                    for (Component mobComponent : catchableMobsLoreComponents)
+                    {
+                        result.add(parseLoreLine(prefix).append(mobComponent));
+                    }
+                }
+                else
+                {
+                    result.add(parseLoreLine(prefix));
+                }
+            }
+            else
+            {
+                result.add(parseLoreLine(rendered));
+            }
+        }
+        return result;
+    }
+
+    private static Component parseLoreLine(String line)
+    {
+        if (line != null && line.matches(".*<[#/]?[a-zA-Z0-9_:.#-]+>.*"))
+        {
+            try
+            {
+                return MiniMessage.miniMessage().deserialize(line)
+                        .decoration(TextDecoration.ITALIC, TextDecoration.State.FALSE);
+            }
+            catch (Exception ignored)
+            {
+            }
+        }
+        String legacyLine = ChatColor.translateAlternateColorCodes('&', line == null ? "" : line);
+        return LegacyComponentSerializer.legacySection().deserialize(legacyLine)
+                .decoration(TextDecoration.ITALIC, TextDecoration.State.FALSE);
+    }
+
     public void setBuyPrice(double buyPrice)
     {
         this.buyPrice = buyPrice;
@@ -193,7 +314,10 @@ public class Ball
             {
                 // Faithfully translate the stored legacy (§/&) display name to a
                 // Component so rendering matches the deprecated setDisplayName path.
-                meta.displayName(LegacyComponentSerializer.legacySection().deserialize(displayName));
+                // Custom name components render italic unless explicitly disabled,
+                // so force italic off unless the display-name itself asks for §o.
+                meta.displayName(LegacyComponentSerializer.legacySection().deserialize(displayName)
+                        .decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE));
             }
             if (customModelData >= 0)
             {
@@ -276,6 +400,38 @@ public class Ball
         return false;
     }
 
+    public static boolean removeItalicFormatting(ItemStack item)
+    {
+        if (!is(item)) return false;
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return false;
+        boolean changed = false;
+        Component displayName = meta.displayName();
+        if (displayName != null)
+        {
+            Component updatedName = displayName.decoration(TextDecoration.ITALIC, false);
+            if (!updatedName.equals(displayName))
+            {
+                meta.displayName(updatedName);
+                changed = true;
+            }
+        }
+        List<Component> lore = meta.lore();
+        if (lore != null && !lore.isEmpty())
+        {
+            List<Component> updatedLore = lore.stream()
+                    .map(line -> line.decoration(TextDecoration.ITALIC, false))
+                    .toList();
+            if (!updatedLore.equals(lore))
+            {
+                meta.lore(updatedLore);
+                changed = true;
+            }
+        }
+        if (changed) item.setItemMeta(meta);
+        return changed;
+    }
+
     public static boolean hasMob(ItemStack item)
     {
         if (item == null || item.getType() == Material.AIR)
@@ -285,6 +441,16 @@ public class Ball
         if (pdc == null)
             return false;
         return pdc.has(key("PBMobData"), PersistentDataType.TAG_CONTAINER);
+    }
+
+    public static EntityType getStoredMobType(ItemStack item)
+    {
+        PersistentDataContainer pdc = pdcOrNull(item);
+        if (pdc == null || !pdc.has(key("PBMobData"), PersistentDataType.TAG_CONTAINER))
+            return null;
+
+        CaughtMob caughtMob = CaughtMob.readFrom(pdc.get(key("PBMobData"), PersistentDataType.TAG_CONTAINER));
+        return caughtMob != null ? caughtMob.getType() : null;
     }
 
 
@@ -346,7 +512,7 @@ public class Ball
         }
 
         Entity spawned = caughtMob.spawnEntity(location);
-        if (spawned != null && (caughtMob.isDegradedPlaceholder() || spawned.getType() != caughtMob.getType()))
+        if (spawned != null)
         {
             clearAction.run();
         }
@@ -415,6 +581,18 @@ public class Ball
             }
             List<String> detailLines = caughtMob.getDisplayLoreLines();
 
+            Ball original = Main.inst.ballsManager.byItemStack(ballItemStack);
+            if (original != null && original.configuredFilledLore != null && !original.configuredFilledLore.isEmpty())
+            {
+                ItemMeta meta = ballItemStack.getItemMeta();
+                if (meta != null)
+                {
+                    meta.lore(original.getConfiguredFilledLore(ballItemStack, caughtMob, overrideName));
+                    ballItemStack.setItemMeta(meta);
+                    return ballItemStack;
+                }
+            }
+
             List<Component> loreComponents = new ArrayList<>();
             loreComponents.add(Component.text(Settings.lang.getColored("usages").replace("{value}", getUsages(ballItemStack) + "")));
             loreComponents.add(Component.text(Settings.lang.getColored("catch-chance").replace("{value}", getCatchSuccess(ballItemStack) + "%")));
@@ -441,6 +619,7 @@ public class Ball
 
             try
             {
+                loreComponents.replaceAll(component -> component.decoration(TextDecoration.ITALIC, false));
                 ItemMeta meta = ballItemStack.getItemMeta();
                 meta.lore(loreComponents);
                 ballItemStack.setItemMeta(meta);
@@ -459,6 +638,19 @@ public class Ball
         {
             Ball original = Main.inst.ballsManager.byItemStack(ballItemStack);
 
+            // Empty balls must always use their configured lore, including after
+            // a missed throw or after releasing a captured mob.
+            if (original != null && original.configuredLore != null && !original.configuredLore.isEmpty())
+            {
+                ItemMeta meta = ballItemStack.getItemMeta();
+                if (meta != null)
+                {
+                    meta.lore(original.getConfiguredLore(ballItemStack));
+                    ballItemStack.setItemMeta(meta);
+                    return ballItemStack;
+                }
+            }
+
             if (original != null && original.catchableMobsLoreComponents != null && !original.catchableMobsLoreComponents.isEmpty())
             {
                 List<Component> loreComponents = new ArrayList<>();
@@ -469,6 +661,7 @@ public class Ball
 
                 try
                 {
+                    loreComponents.replaceAll(component -> component.decoration(TextDecoration.ITALIC, false));
                     ItemMeta meta = ballItemStack.getItemMeta();
                     meta.lore(loreComponents);
                     ballItemStack.setItemMeta(meta);
@@ -508,6 +701,17 @@ public class Ball
 
     private ItemStack applyEmptyLore(ItemStack ballItemStack)
     {
+        if (configuredLore != null && !configuredLore.isEmpty())
+        {
+            ItemMeta meta = ballItemStack.getItemMeta();
+            if (meta != null)
+            {
+                meta.lore(getConfiguredLore(ballItemStack));
+                ballItemStack.setItemMeta(meta);
+                return ballItemStack;
+            }
+        }
+
         if (catchableMobsLoreComponents != null && !catchableMobsLoreComponents.isEmpty())
         {
             List<Component> loreComponents = new ArrayList<>();
@@ -518,6 +722,7 @@ public class Ball
 
             try
             {
+                loreComponents.replaceAll(component -> component.decoration(TextDecoration.ITALIC, false));
                 ItemMeta meta = ballItemStack.getItemMeta();
                 meta.lore(loreComponents);
                 ballItemStack.setItemMeta(meta);
@@ -566,7 +771,9 @@ public class Ball
             {
                 EntityType type = EntityType.valueOf(entityType);
                 catchableMobsStr.append(EntityUtil.getReadableEntityTypeName(type)).append(", ");
-                catchableMobComponents.add(Component.text(ChatColor.GRAY + "- ").append(LocaleUtils.getEntityTranslatable(type)));
+                catchableMobComponents.add(Component.text(ChatColor.GRAY + "- ")
+                        .append(LocaleUtils.getEntityTranslatable(type))
+                        .decoration(TextDecoration.ITALIC, false));
             }
             catch (IllegalArgumentException exc)
             {
@@ -574,23 +781,23 @@ public class Ball
                 {
                     case "ALL_ANIMALS":
                         catchableMobsStr.append(Settings.lang.getColored("all-animals")).append(", ");
-                        catchableMobComponents.add(Component.text(Settings.lang.getColored("all-animals")));
+                        catchableMobComponents.add(Component.text(Settings.lang.getColored("all-animals")).decoration(TextDecoration.ITALIC, false));
                         break;
                     case "ALL_MONSTERS":
                         catchableMobsStr.append(Settings.lang.getColored("all-monsters")).append(", ");
-                        catchableMobComponents.add(Component.text(Settings.lang.getColored("all-monsters")));
+                        catchableMobComponents.add(Component.text(Settings.lang.getColored("all-monsters")).decoration(TextDecoration.ITALIC, false));
                         break;
                     case "ALL_FISH":
                         catchableMobsStr.append(Settings.lang.getColored("all-fish")).append(", ");
-                        catchableMobComponents.add(Component.text(Settings.lang.getColored("all-fish")));
+                        catchableMobComponents.add(Component.text(Settings.lang.getColored("all-fish")).decoration(TextDecoration.ITALIC, false));
                         break;
                     case "ALL_WATER_MOBS":
                         catchableMobsStr.append(Settings.lang.getColored("all-water-mobs")).append(", ");
-                        catchableMobComponents.add(Component.text(Settings.lang.getColored("all-water-mobs")));
+                        catchableMobComponents.add(Component.text(Settings.lang.getColored("all-water-mobs")).decoration(TextDecoration.ITALIC, false));
                         break;
                     case "ALL_MOBS":
                         catchableMobsStr.append(Settings.lang.getColored("all-mobs")).append(", ");
-                        catchableMobComponents.add(Component.text(Settings.lang.getColored("all-mobs")));
+                        catchableMobComponents.add(Component.text(Settings.lang.getColored("all-mobs")).decoration(TextDecoration.ITALIC, false));
                         break;
                 }
             }

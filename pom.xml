@@ -6,7 +6,7 @@
 
     <groupId>PocketMobs</groupId>
     <artifactId>PocketMobs</artifactId>
-    <version>2.0.0</version>
+    <version>2.1.4</version>
     <packaging>jar</packaging>
 
     <name>PocketMobs</name>
@@ -18,7 +18,7 @@
 
     <build>
         <defaultGoal>clean package</defaultGoal>
-        <finalName>PocketMobs</finalName>
+            <finalName>PocketMobs-${project.version}</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
